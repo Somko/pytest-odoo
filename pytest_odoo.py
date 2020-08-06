@@ -30,6 +30,14 @@ def pytest_addoption(parser):
     parser.addoption("--odoo-database",
                      action="store",
                      help="Name of the Odoo database to test")
+    parser.addoption("--odoo-db_host",
+                     action="store",
+                     default="db",
+                     help="Hostname of the database")
+    parser.addoption("--odoo-db_password",
+                     action="store",
+                     default="odoo",
+                     help="password of the database")
     parser.addoption("--odoo-config",
                      action="store",
                      help="Path of the Odoo configuration file")
@@ -49,7 +57,7 @@ def pytest_cmdline_main(config):
         options = []
         # Replace --odoo-<something> by --<something> and prepare the argument
         # to propagate to odoo.
-        for option in ['--odoo-database', '--odoo-log-level', '--odoo-config']:
+        for option in ['--odoo-database', '--odoo-log-level', '--odoo-config', '--odoo-db_password', '--odoo-db_host']:
             value = config.getoption(option)
             if value:
                 odoo_arg = '--%s' % option[7:]
@@ -109,67 +117,6 @@ def enable_odoo_test_flag():
 class OdooTestModule(_pytest.python.Module):
     """ Should only be invoked for paths inside Odoo addons
     """
-
-    def _importtestmodule(self):
-        # copy/paste/modified from original: removed sys.path injection &
-        # added Odoo module prefixing so import within modules is correct
-        try:
-            pypkgpath = self.fspath.pypkgpath()
-            pkgroot = pypkgpath.dirpath()
-            sep = self.fspath.sep
-            names = self.fspath.new(ext="").relto(pkgroot).split(sep)
-            if names[-1] == "__init__":
-                names.pop()
-            modname = ".".join(names)
-            # modules installed with pip for odoo<=9 are into the
-            # odoo_addons namespace. Makes module part of the odoo namespace
-            if modname.startswith('odoo_addons'):
-                modname = odoo_namespace + '.addons.' + modname.replace(
-                    'odoo_addons.', '')
-            # for modules in openerp/addons, since there is a __init__ the
-            # module name is already fully qualified (maybe?)
-            if (not modname.startswith(odoo_namespace + '.addons.')
-                    and modname != odoo_namespace + '.addons'
-                    and modname != odoo_namespace):
-                modname = odoo_namespace + '.addons.' + modname
-
-            __import__(modname)
-            mod = sys.modules[modname]
-            if self.fspath.basename == "__init__.py":
-                # we don't check anything as we might
-                # we in a namespace package ... too icky to check
-                return mod
-            modfile = mod.__file__
-            if modfile[-4:] in ('.pyc', '.pyo'):
-                modfile = modfile[:-1]
-            elif modfile.endswith('$py.class'):
-                modfile = modfile[:-9] + '.py'
-            if modfile.endswith(os.path.sep + "__init__.py"):
-                if self.fspath.basename != "__init__.py":
-                    modfile = modfile[:-12]
-            try:
-                issame = self.fspath.samefile(modfile)
-            except py.error.ENOENT:
-                issame = False
-            if not issame:
-                raise self.fspath.ImportMismatchError(modname, modfile, self)
-        except SyntaxError:
-            raise self.CollectError(
-                py.code.ExceptionInfo().getrepr(style="short"))
-        except self.fspath.ImportMismatchError:
-            e = sys.exc_info()[1]
-            raise self.CollectError(
-                "import file mismatch:\n"
-                "imported module %r has this __file__ attribute:\n"
-                "  %s\n"
-                "which is not the same as the test file we want to collect:\n"
-                "  %s\n"
-                "HINT: remove __pycache__ / .pyc files and/or use a "
-                "unique basename for your test file modules" % e.args
-            )
-        self.config.pluginmanager.consider_module(mod)
-        return mod
-
     def __repr__(self):
         return "<Module %r>" % (getattr(self, "name", None), )
 
