@@ -86,6 +86,7 @@ def load_registry():
     # Finally we enable `testing` flag on current thread
     # since Odoo sets it when loading test suites.
     threading.currentThread().testing = True
+    __import__(odoo_namespace + ".tests.common")
     odoo.registry(odoo.tests.common.get_db_name())
 
 
@@ -175,10 +176,8 @@ class OdooTestModule(_pytest.python.Module):
 
 class OdooTestPackage(_pytest.python.Package, OdooTestModule):
     """Package with odoo module lookup.
-
     Any python module inside the package will be imported with
     the prefix `odoo.addons`.
-
     This class is used to prevent loading odoo modules in duplicate,
     which happens if a module is loaded with and without the prefix.
     """
@@ -189,6 +188,6 @@ class OdooTestPackage(_pytest.python.Package, OdooTestModule):
 
 def pytest_pycollect_makemodule(path, parent):
     if path.basename == "__init__.py":
-        return OdooTestPackage(path, parent)
+        return OdooTestPackage.from_parent(parent, fspath=path)
     else:
-        return OdooTestModule(path, parent)
+        return OdooTestModule.from_parent(parent, fspath=path)
